@@ -1,0 +1,44 @@
+#!/bin/bash
+
+# Trap EXIT signal to clean up
+cleanup() {
+    echo "Cleaning up temporary directories..."
+    rm -rf "$TMP_DIR"
+}
+#trap cleanup EXIT
+
+# Create temporary directories in tmpfs
+TMP_DIR="/dev/shm/bwz-cache"
+[[ ! -d $TMP_DIR ]] && mkdir "$TMP_DIR"
+[[ ! -d $TMP_DIR ]] && echo "failed to create tmp dir" && exit 1
+
+if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -f "${TMP_DIR}/items" ]]; then
+  BW_SESSION=$(bw unlock --raw)
+  export BW_SESSION
+  echo "$BW_SESSION" > "${TMP_DIR}/session"
+
+  #cp items.json "${TMP_DIR}/items"
+  gum spin --title 'fetching items ...' -s dot bw list items > "${TMP_DIR}/items"
+
+  #cp folders.json "${TMP_DIR}/folders"
+  gum spin --title 'fetching folder list ...' -s dot bw list folders > "${TMP_DIR}/folders"
+fi
+
+BW_SESSION=$(<${TMP_DIR}/session)
+export BW_SESSION
+
+items="${TMP_DIR}/items"
+folders="${TMP_DIR}/folders"
+
+TAB="	"
+folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
+
+jq -r '.[] | [ .id, "{{ Color \"10\" \"0\" \""+ .name +"\" }}", .folderId ] | join("'"$TAB"'")' <"$items" \
+  | sed -e "$folder_sed" \
+  | gum format -t template \
+  | fzf --ansi -i --delimiter "$TAB" --with-nth 2,3 \
+  --bind "alt-u:execute(jq '.[] | select(.id == \"{1}\") | .login.username' <items.json | cli-copy)" \
+  --bind "alt-p:execute(jq '.[] | select(.id == \"{1}\") | .login.password' <items.json | cli-copy)" \
+  --bind "alt-t:execute(jq '.[] | select(.id == \"{1}\") | .login.totp' <items.json | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp - | cli-copy)+change-preview-label(otp copied)" \
+  --preview "echo \"{1}\"; jq '.[] | select(.id == \"{1}\")' < $items | json2yaml"
+
