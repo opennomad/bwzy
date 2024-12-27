@@ -8,10 +8,12 @@ cleanup() {
 #trap cleanup EXIT
 
 # Create temporary directories in tmpfs
+# Static filename is used to allow for re-use between invocations
 TMP_DIR="/dev/shm/bwz-cache"
 [[ ! -d $TMP_DIR ]] && mkdir "$TMP_DIR"
 [[ ! -d $TMP_DIR ]] && echo "failed to create tmp dir" && exit 1
 
+# TODO: also check for size of file in case it's empty?
 if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -f "${TMP_DIR}/items" ]]; then
   BW_SESSION=$(bw unlock --raw)
   export BW_SESSION
@@ -29,11 +31,14 @@ folders="${TMP_DIR}/folders"
 TAB="	"
 folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
 
-copy_user="jq '.[] | select(.id == \"{1}\") | .login.username' <$items | cli-copy"
-copy_pass="jq '.[] | select(.id == \"{1}\") | .login.password' <$items | cli-copy"
-copy_totp="jq '.[] | select(.id == \"{1}\") | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' \
-  | oathtool -b --totp - | cli-copy)"
+# define the logic here for use in fzf call
+jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
+copy_user="$jq_select_id | .login.username' <$items | cli-copy"
+copy_pass="$jq_select_id | .login.password' <$items | cli-copy"
+copy_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp - | cli-copy)"
+preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
+# TODO: make the jq below better. define in variable
 jq -r '.[] | [ .id, "{{ Color \"10\" \"0\" \""+ .name +"\" }}", .folderId ] | join("'"$TAB"'")' <"$items" \
   | sed -e "$folder_sed" \
   | gum format -t template \
@@ -41,5 +46,5 @@ jq -r '.[] | [ .id, "{{ Color \"10\" \"0\" \""+ .name +"\" }}", .folderId ] | jo
   --bind "alt-u:execute($copy_user)+change-preview-label(user copied)" \
   --bind "alt-p:execute($copy_pass)+change-preview-label(pass copied)" \
   --bind "alt-t:execute($copy_totp)+change-preview-label(totp copied)" \
-  --preview "echo \"{1}\"; jq '.[] | select(.id == \"{1}\")' < $items | json2yaml | bat --color=always -p -l yaml"
+  --preview "echo \"{1}\"; $preview_item"
 
