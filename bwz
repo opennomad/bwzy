@@ -7,23 +7,50 @@ cleanup() {
 }
 #trap cleanup EXIT
 
+# read in the options
+while getopts "hs" o; do
+    case "${o}" in
+        h)
+          # show help
+          showDocs
+          ;;
+        s)
+          SYNC_CACHE=true
+          ;;
+        *)
+          usage
+          ;;
+    esac
+done
+shift $((OPTIND-1))
+
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 TMP_DIR="/dev/shm/bwz-cache"
 [[ ! -d $TMP_DIR ]] && mkdir "$TMP_DIR"
 [[ ! -d $TMP_DIR ]] && echo "failed to create tmp dir" && exit 1
 
-# TODO: also check for size of file in case it's empty?
-if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -f "${TMP_DIR}/items" ]]; then
-  BW_SESSION=$(bw unlock --raw)
+# use the session token if it exists
+if [[ -f ${TMP_DIR}/session ]]; then
+  BW_SESSION=$(<${TMP_DIR}/session)
   export BW_SESSION
+fi
+
+if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -s "${TMP_DIR}/items" ]] \
+  || [[ ! -f "${TMP_DIR}/folders" ]] || [[ ! -s "${TMP_DIR}/folders" ]] \
+  || [[ $SYNC_CACHE == 'true' ]]; then
+
+  # test the session token and get a new one if it's not unlocked
+  if [[ $(bw status | jq -r '.status') != 'unlocked' ]]; then
+    BW_SESSION=$(bw unlock --raw)
+    [[ -z $BW_SESSION ]] && echo "failed to get session token" && exit 1
+    export BW_SESSION
+  fi
+
   echo "$BW_SESSION" > "${TMP_DIR}/session"
   gum spin --title 'fetching items ...' -s dot bw list items > "${TMP_DIR}/items"
   gum spin --title 'fetching folder list ...' -s dot bw list folders > "${TMP_DIR}/folders"
 fi
-
-BW_SESSION=$(<${TMP_DIR}/session)
-export BW_SESSION
 
 items="${TMP_DIR}/items"
 folders="${TMP_DIR}/folders"
@@ -35,16 +62,30 @@ folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$fo
 jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
 copy_user="$jq_select_id | .login.username' <$items | cli-copy"
 copy_pass="$jq_select_id | .login.password' <$items | cli-copy"
-copy_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp - | cli-copy)"
+copy_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp - | cli-copy"
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
-# TODO: make the jq below better. define in variable
-jq -r '.[] | [ .id, "{{ Color \"10\" \"0\" \""+ .name +"\" }}", .folderId ] | join("'"$TAB"'")' <"$items" \
+read -r -d '' fzf_header <<'FZF_HEADER'
+[󰘴-u] copy username [󰘴-p] copy password    [󰘴-t] copy totp
+[󰘴-q] quit          [󰘴-/] toggle preview   [󰘴-w] toggle preview wrap
+FZF_HEADER
+
+jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
   | sed -e "$folder_sed" \
+  | awk -F "$TAB" '{ printf "%s\t%-30s\t%30s\n", $1, $2, $3}' \
+  | awk -F '	' '{ print $1"\t{{ Color \"3\" \"0\" \""$2"\" }}\t{{Color \"8\" \"0\" \"" $3 "\" }}" }' \
   | gum format -t template \
-  | fzf --ansi -i --delimiter "$TAB" --with-nth 2,3 \
-  --bind "alt-u:execute($copy_user)+change-preview-label(user copied)" \
-  --bind "alt-p:execute($copy_pass)+change-preview-label(pass copied)" \
-  --bind "alt-t:execute($copy_totp)+change-preview-label(totp copied)" \
-  --preview "echo \"{1}\"; $preview_item"
+  | fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
+  --bind "ctrl-u:execute-silent($copy_user)+change-prompt(user copied >)" \
+  --bind "ctrl-p:execute-silent($copy_pass)+change-prompt(pass copied >)" \
+  --bind "ctrl-t:execute-silent($copy_totp)+change-prompt(totp copied >)" \
+  --bind 'ctrl-/:toggle-preview' \
+  --bind 'ctrl-w:toggle-preview-wrap' \
+  --bind 'ctrl-q:abort' \
+  --bind 'focus:transform-preview-label:echo {2} / {3}' \
+  --color 'hl+:blue,hl:blue' \
+  --preview-window 'hidden,right,60%,<60(down,75%)' \
+  --preview "$preview_item" \
+  --header "${fzf_header}" \
+  --height "100%"
 
