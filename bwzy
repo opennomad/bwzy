@@ -7,12 +7,25 @@ cleanup() {
 }
 #trap cleanup EXIT
 
+read -r -d '' HELP_TEXT<<'EOH'
+bwzy is a fuzzy wrapper to the bitwarden cli
+
+Usage:
+  `bwzy` will run the fuzzy selection
+  `bwzy -s` will sync the vault
+  `bwzy -f` will flush the cache
+EOH
+
 # read in the options
-while getopts "hs" o; do
+while getopts "fhs" o; do
     case "${o}" in
         h)
           # show help
-          # TODO: implement help
+          echo "$HELP_TEXT" | gum format
+          exit 0
+          ;;
+        f)
+          FLUSH_CACHE=true
           ;;
         s)
           SYNC_CACHE=true
@@ -27,6 +40,9 @@ shift $((OPTIND-1))
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 TMP_DIR="/dev/shm/bwz-cache"
+[[ "$FLUSH_CACHE" == 'true' ]] \
+  && rm -rf "$TMP_DIR" \
+  && echo "cache flushed" && exit 0
 [[ ! -d $TMP_DIR ]] && mkdir "$TMP_DIR"
 [[ ! -d $TMP_DIR ]] && echo "failed to create tmp dir" && exit 1
 
@@ -41,7 +57,7 @@ if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -s "${TMP_DIR}/items" ]] \
   || [[ $SYNC_CACHE == 'true' ]]; then
 
   # test the session token and get a new one if it's not unlocked
-  if [[ $(bw status | jq -r '.status') != 'unlocked' ]]; then
+  if [[ -z "$BW_SESSION" ]] || [[ $(bw status | jq -r '.status') != 'unlocked' ]]; then
     BW_SESSION=$(bw unlock --raw)
     [[ -z $BW_SESSION ]] && echo "failed to get session token" && exit 1
     export BW_SESSION
