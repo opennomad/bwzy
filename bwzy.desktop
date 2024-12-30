@@ -1,0 +1,10 @@
+[Desktop Entry]
+Name=bwzy
+Categories=ConsoleOnly;
+GenericName=Bitwarden Fuzzy
+Comment=Terminal MUA using notmuch mail
+Exec=kitty -T 'bwzy' --detach /home/matthias/Code/bwzy/bwzy
+Terminal=false
+Icon=utilities-terminal
+#Icon=bitwarden
+Type=Application
