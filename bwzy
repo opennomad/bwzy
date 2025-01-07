@@ -39,6 +39,7 @@ shift $((OPTIND-1))
 
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
+umask 077 # only user shall have permissions
 TMP_DIR="/dev/shm/bwz-cache"
 [[ "$FLUSH_CACHE" == 'true' ]] \
   && rm -rf "$TMP_DIR" \
