@@ -10,8 +10,8 @@ The `bw` cli is great, but not very user-friendly.
 - search based on name and folder
 - copy user/pass/totp
 - cache the items in shared memory (`/dev/shm/`) to make it fast
-- cache does not persisted through reboots
-- refresh cache
+- cache does not persist through reboots
+- refresh/flush cache
 - preview items in `YAML` form
 
 # requirements
