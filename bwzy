@@ -89,10 +89,11 @@ FZF_HEADER
 
 jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
   | sed -e "$folder_sed" \
-  | awk -F "$TAB" '{ printf "%s\t%-30s\t%30s\n", $1, $2, $3}' \
+  | awk -F "$TAB" '{ printf "%s\t%-35s\t%28s\n", $1, $2, $3}' \
   | awk -F '	' '{ print $1"\t{{ Color \"3\" \"0\" \""$2"\" }}\t{{Color \"8\" \"0\" \"" $3 "\" }}" }' \
   | gum format -t template \
   | fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
+  --layout reverse --header-first \
   --bind "ctrl-u:execute-silent($copy_user)+change-prompt(user copied >)" \
   --bind "ctrl-p:execute-silent($copy_pass)+change-prompt(pass copied >)" \
   --bind "ctrl-t:execute-silent($copy_totp)+change-prompt(totp copied >)" \
@@ -100,8 +101,7 @@ jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
   --bind 'ctrl-w:toggle-preview-wrap' \
   --bind 'ctrl-q:abort' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
-  --color 'hl+:blue,hl:blue' \
-  --preview-window 'hidden,right,60%,<60(down,75%)' \
+  --preview-window 'down:75%:hidden' \
   --preview "$preview_item" \
   --header "${fzf_header}" \
   --height "100%"
