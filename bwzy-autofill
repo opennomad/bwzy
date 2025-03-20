@@ -1,0 +1,28 @@
+#!/bin/bash
+
+# Read up to the first three lines from standard input
+read -r USER || USER=""
+read -r PASS || PASS=""
+read -r TOTP || TOTP=""
+
+# Get the last active window
+#LAST_WINDOW=$(hyprctl clients | grep ^Window | tail -n1 | awk '{print $2}')
+
+# Focus last window
+#echo "LAST_WINDOW: $LAST_WINDOW"
+#hyprctl dispatch focuswindow "address:$LAST_WINDOW"
+$BWZY_REFOCUS_CMD
+
+# Use wtype to output the USER and PASS
+$BWZY_TYPE_CMD "$USER"
+$BWZY_TYPE_CMD "	"
+$BWZY_TYPE_CMD "$PASS"
+$BWZY_TYPE_CMD "	"
+$BWZY_TYPE_CMD $'\n'
+[[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "user & pass autofilled"
+
+# Copy the TOTP to clipboard
+if [[ -n "$TOTP" ]]; then
+    echo -n "$TOTP" | cli-copy
+    [[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "TOTP copied to clipboard"
+fi
