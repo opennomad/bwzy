@@ -9,9 +9,10 @@ read -r TOTP || TOTP=""
 #LAST_WINDOW=$(hyprctl clients | grep ^Window | tail -n1 | awk '{print $2}')
 
 # Focus last window
-#echo "LAST_WINDOW: $LAST_WINDOW"
-#hyprctl dispatch focuswindow "address:$LAST_WINDOW"
 $BWZY_REFOCUS_CMD
+
+# Hide bwzy
+$BWZY_HIDE_CMD
 
 # Use wtype to output the USER and PASS
 $BWZY_TYPE_CMD "$USER"
@@ -26,3 +27,4 @@ if [[ -n "$TOTP" ]]; then
     echo -n "$TOTP" | cli-copy
     [[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "TOTP copied to clipboard"
 fi
+
