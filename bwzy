@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # TODO: hide window on copy
 
@@ -8,7 +8,7 @@ cleanup() {
     rm -rf "$TMP_DIR"
 }
 [[ "$BWZY_KEEP_CACHE" != 'true' ]] && trap cleanup EXIT
-  
+
 # defaults
 BWZY_DEFAULT_OPTS=(--layout reverse --height 100%)
 BWZY_ONESHOT_OPTS=(--layout default --height 10 --no-header)
@@ -78,7 +78,7 @@ log "bwzy options: flush:${FLUSH_CACHE} sync:${SYNC_CACHE}"
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 umask 077 # only user shall have permissions
-TMP_DIR="/dev/shm/bwz-cache"
+TMP_DIR="/dev/shm/bwzy-cache"
 [[ "$FLUSH_CACHE" == 'true' ]] \
   && rm -rf "$TMP_DIR" \
   && echo "cache flushed" && exit 0
@@ -97,7 +97,7 @@ if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -s "${TMP_DIR}/items" ]] \
 
   # test the session token and get a new one if it's not unlocked
   if [[ -z "$BW_SESSION" ]] || [[ $(bw status | jq -r '.status') != 'unlocked' ]]; then
-    BW_PASS=$(gum input --password)
+    BW_PASS=$(gum input --placeholder="enter master password to unlock vault ..." --password)
     BW_SESSION=$(bw unlock "$BW_PASS" --raw)
     [[ -z $BW_SESSION ]] && echo "failed to get session token" && exit 1
     export BW_SESSION
@@ -117,10 +117,10 @@ items="${TMP_DIR}/items"
 folders="${TMP_DIR}/folders"
 
 TAB="	"
-folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
+folder_sed=$(jq -j '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
 
 # define the logic here for use in fzf call
-jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
+jq_select_id="jq -j '.[] | select(.id == \"{1}\")"
 # set up queries for the fields
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
@@ -137,9 +137,9 @@ auto_paste="($select_user; $select_pass; $select_totp) | $bwzy_autofill"
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
 read -r -d '' fzf_header <<'FZF_HEADER'
-[󰘴-l] copy link     [󰘴-/] toggle preview   [󰘴-w] toggle preview wrap
-[󰘴-u] copy username [󰘴-p] copy password    [󰘴-t] copy totp
-[󰘴-q] quit          [enter] auto-fill
+[c-/] 󰔡 preview       [c-w] 󰔡 preview wrap   [c-t] 󰔡 this help
+[c-u] copy username   [c-p] copy password    [c-t] copy totp
+[c-l] copy link       [enter] auto-fill      [c-q] quit
 FZF_HEADER
 
 # shellcheck disable=SC2016
