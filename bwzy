@@ -1,7 +1,5 @@
 #!/usr/bin/env bash
 
-# TODO: hide window on copy
-
 # Trap EXIT signal to clean up by default
 cleanup() {
     echo "Cleaning up temporary directories..."
@@ -30,6 +28,7 @@ bwzy is a fuzzy wrapper to the bitwarden cli
 
 Usage:
   `bwzy` will run the fuzzy selection
+  `bwzy -1` exit after first action
   `bwzy -s` syncs the vault
   `bwzy -f` flushes the cache
   `bwzy -d` enables debug logging
@@ -41,7 +40,6 @@ FLUSH_CACHE=false
 SYNC_CACHE=false
 DEBUG=false
 BWZY_OPTS=("${BWZY_DEFAULT_OPTS[@]}")
-BWZY_EXIT=""
 while getopts "dfhs1" o; do
   case "${o}" in
     1)
@@ -117,22 +115,30 @@ items="${TMP_DIR}/items"
 folders="${TMP_DIR}/folders"
 
 TAB="	"
-folder_sed=$(jq -j '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
+folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
 
 # define the logic here for use in fzf call
-jq_select_id="jq -j '.[] | select(.id == \"{1}\")"
+jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
+
 # set up queries for the fields
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
 select_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp -"
 select_link="$jq_select_id | .login.uris[1].uri' <$items"
 
-copy_user="$select_user | $BWZY_COPY_CMD"
-copy_pass="$select_pass | $BWZY_COPY_CMD"
-copy_totp="$select_totp | $BWZY_COPY_CMD"
-copy_link="$select_link | $BWZY_COPY_CMD"
-bwzy_autofill="$(dirname "$0")/bwzy-autofill"
-auto_paste="($select_user; $select_pass; $select_totp) | $bwzy_autofill"
+copy_user="execute-silent($select_user | $BWZY_COPY_CMD)"
+copy_pass="execute-silent($select_pass | $BWZY_COPY_CMD)"
+copy_totp="execute-silent($select_totp | $BWZY_COPY_CMD)"
+copy_link="execute-silent($select_link | $BWZY_COPY_CMD)"
+
+user_prompt="change-prompt($BWZY_USER_SYMBOL)"
+pass_prompt="change-prompt($BWZY_PASS_SYMBOL)"
+totp_prompt="change-prompt($BWZY_TOTP_SYMBOL)"
+link_prompt="change-prompt($BWZY_LINK_SYMBOL)"
+
+bwzy_autofill="$(dirname "$0")/bwzy-autofill" # TODO: makde this configurable
+auto_paste="execute-silent(($select_user; $select_pass; $select_totp) | $bwzy_autofill)"
+auto_prompt="change-prompt($BWZY_AUTO_SYMBOL)"
 
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
@@ -142,6 +148,9 @@ read -r -d '' fzf_header <<'FZF_HEADER'
 [c-l] copy link       [enter] auto-fill      [c-q] quit
 FZF_HEADER
 
+pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
+
+echo "A: $auto_paste"
 # shellcheck disable=SC2016
 # **the single and double quotes in the fzf commands are intentional**
 jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
@@ -155,11 +164,11 @@ jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
   --prompt="$BWZY_PROMPT_SYMBOL" \
   --info 'inline-right:' \
   --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
-  --bind "ctrl-u:execute-silent($copy_user)+change-prompt($BWZY_USER_SYMBOL)${BWZY_EXIT}" \
-  --bind "ctrl-p:execute-silent($copy_pass)+change-prompt($BWZY_PASS_SYMBOL)${BWZY_EXIT}" \
-  --bind "ctrl-t:execute-silent($copy_totp)+change-prompt($BWZY_TOTP_SYMBOL)${BWZY_EXIT}" \
-  --bind "ctrl-l:execute-silent($copy_link)+change-prompt($BWZY_LINK_SYMBOL)${BWZY_EXIT}" \
-  --bind "enter:execute-silent($auto_paste)+change-prompt($BWZY_AUTO_SYMBOL)${BWZY_EXIT}" \
+  --bind "ctrl-u:$pre_action+$copy_user+$user_prompt" \
+  --bind "ctrl-p:$pre_action+$copy_pass+$pass_prompt" \
+  --bind "ctrl-t:$pre_action+$copy_totp+$totp_prompt" \
+  --bind "ctrl-l:$pre_action+$copy_link+$link_prompt" \
+  --bind "enter:$pre_action+$auto_paste+$auto_prompt" \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'ctrl-w:toggle-preview-wrap' \
   --bind 'ctrl-h:toggle-header' \
