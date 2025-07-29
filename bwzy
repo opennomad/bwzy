@@ -3,11 +3,12 @@
 # Trap EXIT signal to clean up by default
 cleanup() {
     echo "Cleaning up temporary directories..."
-    rm -rf "$TMP_DIR"
+    rm -rf "$BWZY_CACHE"
 }
 [[ "$BWZY_KEEP_CACHE" != 'true' ]] && trap cleanup EXIT
 
 # defaults
+BWZY_CACHE="${BWZY_CACHE:-/dev/shm/bwzy-cache}"
 BWZY_DEFAULT_OPTS=(--layout reverse --height 100%)
 BWZY_ONESHOT_OPTS=(--layout default --height 10 --no-header)
 BWZY_ONESHOT_EXIT="+accept"
@@ -76,21 +77,20 @@ log "bwzy options: flush:${FLUSH_CACHE} sync:${SYNC_CACHE}"
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 umask 077 # only user shall have permissions
-TMP_DIR="/dev/shm/bwzy-cache"
 [[ "$FLUSH_CACHE" == 'true' ]] \
-  && rm -rf "$TMP_DIR" \
+  && rm -rf "$BWZY_CACHE" \
   && echo "cache flushed" && exit 0
-[[ ! -d $TMP_DIR ]] && mkdir "$TMP_DIR"
-[[ ! -d $TMP_DIR ]] && echo "failed to create tmp dir" && exit 1
+[[ ! -d $BWZY_CACHE ]] && mkdir "$BWZY_CACHE"
+[[ ! -d $BWZY_CACHE ]] && echo "failed to create tmp dir" && exit 1
 
 # use the session token if it exists
-if [[ -f ${TMP_DIR}/session ]]; then
-  BW_SESSION=$(<${TMP_DIR}/session)
+if [[ -f ${BWZY_CACHE}/session ]]; then
+  BW_SESSION=$(<${BWZY_CACHE}/session)
   export BW_SESSION
 fi
 
-if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -s "${TMP_DIR}/items" ]] \
-  || [[ ! -f "${TMP_DIR}/folders" ]] || [[ ! -s "${TMP_DIR}/folders" ]] \
+if [[ ! -f "${BWZY_CACHE}/items" ]] || [[ ! -s "${BWZY_CACHE}/items" ]] \
+  || [[ ! -f "${BWZY_CACHE}/folders" ]] || [[ ! -s "${BWZY_CACHE}/folders" ]] \
   || [[ $SYNC_CACHE == 'true' ]]; then
 
   # test the session token and get a new one if it's not unlocked
@@ -101,9 +101,9 @@ if [[ ! -f "${TMP_DIR}/items" ]] || [[ ! -s "${TMP_DIR}/items" ]] \
     export BW_SESSION
   fi
 
-  echo "$BW_SESSION" > "${TMP_DIR}/session"
-  gum spin --title 'fetching items ...' -s dot bw list items > "${TMP_DIR}/items"
-  gum spin --title 'fetching folder list ...' -s dot bw list folders > "${TMP_DIR}/folders"
+  echo "$BW_SESSION" > "${BWZY_CACHE}/session"
+  gum spin --title 'fetching items ...' -s dot bw list items > "${BWZY_CACHE}/items"
+  gum spin --title 'fetching folder list ...' -s dot bw list folders > "${BWZY_CACHE}/folders"
 fi
 
 log "bwzy Environment:"
@@ -111,8 +111,8 @@ log "bwzy Environment:"
   log -- "- $line"
 done
 
-items="${TMP_DIR}/items"
-folders="${TMP_DIR}/folders"
+items="${BWZY_CACHE}/items"
+folders="${BWZY_CACHE}/folders"
 
 TAB="	"
 folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
