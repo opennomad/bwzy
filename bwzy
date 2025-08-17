@@ -31,17 +31,19 @@ Usage:
   `bwzy` will run the fuzzy selection
   `bwzy -1` exit after first action
   `bwzy -s` syncs the vault
-  `bwzy -f` flushes the cache
+  `bwzy -f` force syncs the vault (implies `-s`)
+  `bwzy -c` clears the cache
   `bwzy -d` enables debug logging
   `bwzy -h` shows this help
 EOH
 
 # read in the options
-FLUSH_CACHE=false
+CLEAR_CACHE=false
 SYNC_CACHE=false
+FORCE_SYNC=false
 DEBUG=false
 BWZY_OPTS=("${BWZY_DEFAULT_OPTS[@]}")
-while getopts "dfhs1" o; do
+while getopts "dcfhs1" o; do
   case "${o}" in
     1)
       BWZY_OPTS=( "${BWZY_ONESHOT_OPTS[@]}" )
@@ -55,8 +57,12 @@ while getopts "dfhs1" o; do
     d)
       DEBUG=true
       ;;
+    c)
+      CLEAR_CACHE=true
+      ;;
     f)
-      FLUSH_CACHE=true
+      FORCE_SYNC=true
+      SYNC_CACHE=true
       ;;
     s)
       SYNC_CACHE=true
@@ -72,12 +78,12 @@ shift $((OPTIND-1))
 function log() {
   [[ $DEBUG == 'true' ]] && gum log "$@"
 }
-log "bwzy options: flush:${FLUSH_CACHE} sync:${SYNC_CACHE}"
+log "bwzy options: flush:${CLEAR_CACHE} sync:${SYNC_CACHE} force:${FORCE_SYNC}"
 
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 umask 077 # only user shall have permissions
-[[ "$FLUSH_CACHE" == 'true' ]] \
+[[ "$CLEAR_CACHE" == 'true' ]] \
   && rm -rf "$BWZY_CACHE" \
   && echo "cache flushed" && exit 0
 [[ ! -d $BWZY_CACHE ]] && mkdir "$BWZY_CACHE"
@@ -85,7 +91,7 @@ umask 077 # only user shall have permissions
 
 # use the session token if it exists
 if [[ -f ${BWZY_CACHE}/session ]]; then
-  BW_SESSION=$(<${BWZY_CACHE}/session)
+  BW_SESSION=$(<"${BWZY_CACHE}/session")
   export BW_SESSION
 fi
 
@@ -101,6 +107,9 @@ if [[ ! -f "${BWZY_CACHE}/items" ]] || [[ ! -s "${BWZY_CACHE}/items" ]] \
     export BW_SESSION
   fi
 
+  # force the full sync
+  [[ $FORCE_SYNC == 'true' ]] && gum spin --title 'forcing full sync' -s dot -- bw sync -f
+  
   echo "$BW_SESSION" > "${BWZY_CACHE}/session"
   gum spin --title 'fetching items ...' -s dot bw list items > "${BWZY_CACHE}/items"
   gum spin --title 'fetching folder list ...' -s dot bw list folders > "${BWZY_CACHE}/folders"
@@ -144,13 +153,12 @@ preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yam
 
 read -r -d '' fzf_header <<'FZF_HEADER'
 [c-/] 󰔡 preview       [c-w] 󰔡 preview wrap   [c-t] 󰔡 this help
-[c-u] copy username   [c-p] copy password    [c-t] copy totp
-[c-l] copy link       [enter] auto-fill      [c-q] quit
+[a-u] copy username   [a-p] copy password    [a-t] copy totp
+[a-l] copy link       [enter] auto-fill      [c-q] quit
 FZF_HEADER
 
 pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
 
-echo "A: $auto_paste"
 # shellcheck disable=SC2016
 # **the single and double quotes in the fzf commands are intentional**
 jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
@@ -164,10 +172,10 @@ jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
   --prompt="$BWZY_PROMPT_SYMBOL" \
   --info 'inline-right:' \
   --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
-  --bind "ctrl-u:$pre_action+$copy_user+$user_prompt" \
-  --bind "ctrl-p:$pre_action+$copy_pass+$pass_prompt" \
-  --bind "ctrl-t:$pre_action+$copy_totp+$totp_prompt" \
-  --bind "ctrl-l:$pre_action+$copy_link+$link_prompt" \
+  --bind "alt-u:$pre_action+$copy_user+$user_prompt" \
+  --bind "alt-p:$pre_action+$copy_pass+$pass_prompt" \
+  --bind "alt-t:$pre_action+$copy_totp+$totp_prompt" \
+  --bind "alt-l:$pre_action+$copy_link+$link_prompt" \
   --bind "enter:$pre_action+$auto_paste+$auto_prompt" \
   --bind 'ctrl-/:toggle-preview' \
   --bind 'ctrl-w:toggle-preview-wrap' \
