@@ -2,25 +2,31 @@
 
 # Trap EXIT signal to clean up by default
 cleanup() {
-    echo "Cleaning up temporary directories..."
+    echo "Cleaning up temporary directory..."
     rm -rf "$BWZY_CACHE"
 }
 [[ "$BWZY_KEEP_CACHE" != 'true' ]] && trap cleanup EXIT
 
 # defaults
 BWZY_CACHE="${BWZY_CACHE:-/dev/shm/bwzy-cache}"
+BWZY_FILTER="${BWZY_FILTER:-zz~ }"
+
 BWZY_DEFAULT_OPTS=(--layout reverse --height 100%)
 BWZY_ONESHOT_OPTS=(--layout default --height 10 --no-header)
-BWZY_ONESHOT_EXIT="+accept"
+
+bwzy_autofill=${BWZY_AUTOFILL_HELPER:-"$(dirname "$0")/bwzy-autofill"}
+
 BWZY_POINTER_SYMBOL=${BWZY_POINTER_SYMBOL:-> }
-BWZY_MARKER_SYMBOL=${BWZY_MARKER_SYMBOL:-! }
 BWZY_PROMPT_SYMBOL=${BWZY_PROMPT_SYMBOL:-? }
 BWZY_USER_SYMBOL=${BWZY_USER_SYMBOL:-u+}
 BWZY_PASS_SYMBOL=${BWZY_PASS_SYMBOL:-p+}
 BWZY_TOTP_SYMBOL=${BWZY_TOTP_SYMBOL:-t+}
 BWZY_LINK_SYMBOL=${BWZY_LINK_SYMBOL:-l+}
 BWZY_AUTO_SYMBOL=${BWZY_AUTO_SYMBOL:-a+}
+BWZY_FOLDER_SYMBOL=${BWZY_FOLDER_SYMBOL:-/}
+export GLAMOUR_STYLE=tokyo-night
 
+# these are needed by the auto-completer
 export BWZY_COPY_CMD=${BWZY_COPY_CMD:-wl-copy}
 export BWZY_TYPE_CMD=${BWZY_TYPE_CMD:-wtype}
 
@@ -30,6 +36,7 @@ bwzy is a fuzzy wrapper to the bitwarden cli
 Usage:
   `bwzy` will run the fuzzy selection
   `bwzy -1` exit after first action
+  `bwzy -a` show all items (no filter)
   `bwzy -s` syncs the vault
   `bwzy -f` force syncs the vault (implies `-s`)
   `bwzy -c` clears the cache
@@ -37,35 +44,43 @@ Usage:
   `bwzy -h` shows this help
 EOH
 
-# read in the options
-CLEAR_CACHE=false
-SYNC_CACHE=false
-FORCE_SYNC=false
-DEBUG=false
+# set some defaults to override based on options
+CLEAR_CACHE='false'
+SYNC_CACHE='false'
+FORCE_SYNC='false'
+DEBUG='false'
 BWZY_OPTS=("${BWZY_DEFAULT_OPTS[@]}")
-while getopts "dcfhs1" o; do
+FILTER_ARG='-v' # argument to grep
+ONESHOT='false'
+
+# read in the options
+while getopts "acdfhis1" o; do
   case "${o}" in
     1)
+      ONESHOT='true'
       BWZY_OPTS=( "${BWZY_ONESHOT_OPTS[@]}" )
-      BWZY_EXIT=${BWZY_ONESHOT_EXIT}
+      ;;
+    a)
+      BWZY_FILTER=''
+      FILTER_ARG=''
+      ;;
+    c)
+      CLEAR_CACHE='true'
+      ;;
+    d)
+      DEBUG='true'
+      ;;
+    f)
+      FORCE_SYNC='true'
+      SYNC_CACHE='true'
       ;;
     h)
       # show help and exit
       echo "$HELP_TEXT" | gum format
       exit 0
       ;;
-    d)
-      DEBUG=true
-      ;;
-    c)
-      CLEAR_CACHE=true
-      ;;
-    f)
-      FORCE_SYNC=true
-      SYNC_CACHE=true
-      ;;
     s)
-      SYNC_CACHE=true
+      SYNC_CACHE='true'
       ;;
     *)
       usage
@@ -73,6 +88,8 @@ while getopts "dcfhs1" o; do
   esac
 done
 shift $((OPTIND-1))
+
+query=$*
 
 # begin of main code
 function log() {
@@ -129,62 +146,70 @@ folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$fo
 # define the logic here for use in fzf call
 jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
 
+pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
+
 # set up queries for the fields
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
 select_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp -"
 select_link="$jq_select_id | .login.uris[1].uri' <$items"
+select_user_pass_totp="$select_user; $select_pass; $select_totp"
 
-copy_user="execute-silent($select_user | $BWZY_COPY_CMD)"
-copy_pass="execute-silent($select_pass | $BWZY_COPY_CMD)"
-copy_totp="execute-silent($select_totp | $BWZY_COPY_CMD)"
-copy_link="execute-silent($select_link | $BWZY_COPY_CMD)"
+if [[ $ONESHOT == 'true' ]]; then
+  copy_user="become($select_user)"
+  copy_pass="become($select_pass)"
+  copy_totp="become($select_totp)"
+  copy_link="become($select_link)"
+  auto_paste="become(($select_user_pass_totp))"
+else
+  copy_user="execute-silent($select_user | $BWZY_COPY_CMD)"
+  copy_pass="execute-silent($select_pass | $BWZY_COPY_CMD)"
+  copy_totp="execute-silent($select_totp | $BWZY_COPY_CMD)"
+  copy_link="execute-silent($select_link | $BWZY_COPY_CMD)"
+  auto_paste="execute-silent(($select_user_pass_totp) | $bwzy_autofill)"
 
-user_prompt="change-prompt($BWZY_USER_SYMBOL)"
-pass_prompt="change-prompt($BWZY_PASS_SYMBOL)"
-totp_prompt="change-prompt($BWZY_TOTP_SYMBOL)"
-link_prompt="change-prompt($BWZY_LINK_SYMBOL)"
-
-bwzy_autofill="$(dirname "$0")/bwzy-autofill" # TODO: makde this configurable
-auto_paste="execute-silent(($select_user; $select_pass; $select_totp) | $bwzy_autofill)"
-auto_prompt="change-prompt($BWZY_AUTO_SYMBOL)"
+  copy_user="${pre_action}+${copy_user}+change-prompt($BWZY_USER_SYMBOL)"
+  copy_pass="${pre_action}+${copy_pass}+change-prompt($BWZY_PASS_SYMBOL)"
+  copy_totp="${pre_action}+${copy_totp}+change-prompt($BWZY_TOTP_SYMBOL)"
+  copy_link="${pre_action}+${copy_link}+change-prompt($BWZY_LINK_SYMBOL)"
+  auto_paste="${pre_action}+${auto_paste}+change-prompt($BWZY_AUTO_SYMBOL)"
+fi
 
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
-read -r -d '' fzf_header <<'FZF_HEADER'
-[c-/] 󰔡 preview       [c-w] 󰔡 preview wrap   [c-t] 󰔡 this help
+read -r -d '' fzf_header <<FZF_HEADER
+[a-/] preview on/off  [a-w] preview wrap     [a-h] this help
 [a-u] copy username   [a-p] copy password    [a-t] copy totp
-[a-l] copy link       [enter] auto-fill      [c-q] quit
+[a-l] copy link       [enter] auto-fill      [esc] quit
 FZF_HEADER
 
-pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
-
+# | awk -F "$TAB" '{ printf "%s\t%-35s\t%27s\n", $1, $2, $3 }' \
+# | awk -F '	' '{ print $1"\t{{ Color \"3\" \"0\" \""$2"\" }}\t{{Color \"8\" \"0\" \"" $3 "\" }}" }' \
+#
 # shellcheck disable=SC2016
 # **the single and double quotes in the fzf commands are intentional**
-jq -r '.[] | [ .id, .name, .folderId ] | join("'"$TAB"'")' <"$items" \
+jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join("'"$TAB"'")' <"$items" \
   | sed -e "$folder_sed" \
-  | awk -F "$TAB" '{ printf "%s\t%-35s\t%27s\n", $1, $2, $3 }' \
-  | awk -F '	' '{ print $1"\t{{ Color \"3\" \"0\" \""$2"\" }}\t{{Color \"8\" \"0\" \"" $3 "\" }}" }' \
-  | gum format -t template \
+  | grep ${FILTER_ARG} "${BWZY_FILTER}" \
+  | gum format \
   | fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
   --header-first \
   --marker='' --pointer="$BWZY_POINTER_SYMBOL" \
   --prompt="$BWZY_PROMPT_SYMBOL" \
   --info 'inline-right:' \
   --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
-  --bind "alt-u:$pre_action+$copy_user+$user_prompt" \
-  --bind "alt-p:$pre_action+$copy_pass+$pass_prompt" \
-  --bind "alt-t:$pre_action+$copy_totp+$totp_prompt" \
-  --bind "alt-l:$pre_action+$copy_link+$link_prompt" \
-  --bind "enter:$pre_action+$auto_paste+$auto_prompt" \
-  --bind 'ctrl-/:toggle-preview' \
-  --bind 'ctrl-w:toggle-preview-wrap' \
-  --bind 'ctrl-h:toggle-header' \
-  --bind 'ctrl-q:abort' \
+  --bind "alt-u:$copy_user" \
+  --bind "alt-p:$copy_pass" \
+  --bind "alt-t:$copy_totp" \
+  --bind "alt-l:$copy_link" \
+  --bind "enter:$auto_paste" \
+  --bind 'alt-/:toggle-preview' \
+  --bind 'alt-w:toggle-preview-wrap' \
+  --bind 'alt-h:toggle-header' \
+  --bind 'esc:abort' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
   --bind "focus:change-prompt($BWZY_PROMPT_SYMBOL)" \
   --preview-window 'down:75%:hidden' \
   --preview "$preview_item" \
   --header "${fzf_header}" \
-  "${BWZY_OPTS[@]}"
-
+  "${BWZY_OPTS[@]}" -q "$query"

@@ -18,8 +18,6 @@ $BWZY_TYPE_CMD \
   -s $next_sleep \
   -k return
 
-[[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "user & pass autofilled"
-
 # Copy the TOTP to clipboard
 if [[ -n "$TOTP" ]]; then
     echo -n "$TOTP" | cli-copy
