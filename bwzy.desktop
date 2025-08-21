@@ -2,7 +2,7 @@
 Name=bwzy
 Categories=ConsoleOnly;
 GenericName=Bitwarden Fuzzy
-Comment=Terminal MUA using notmuch mail
+Comment=FZF bitwarden UI
 Exec=kitty -T 'bwzy' --detach bwzy
 Terminal=false
 Icon=bitwarden
