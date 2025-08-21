@@ -10,12 +10,10 @@ cleanup() {
 # defaults
 BWZY_CACHE="${BWZY_CACHE:-/dev/shm/bwzy-cache}"
 BWZY_FILTER="${BWZY_FILTER:-zz~ }"
-
+# options passed to fzf for default and oneshot modes
 BWZY_DEFAULT_OPTS=(--layout reverse --height 100%)
 BWZY_ONESHOT_OPTS=(--layout default --height 10 --no-header)
-
-bwzy_autofill=${BWZY_AUTOFILL_HELPER:-"$(dirname "$0")/bwzy-autofill"}
-
+# visual settings
 BWZY_POINTER_SYMBOL=${BWZY_POINTER_SYMBOL:-> }
 BWZY_PROMPT_SYMBOL=${BWZY_PROMPT_SYMBOL:-? }
 BWZY_USER_SYMBOL=${BWZY_USER_SYMBOL:-u+}
@@ -28,6 +26,9 @@ BWZY_FOLDER_SYMBOL=${BWZY_FOLDER_SYMBOL:-/}
 # these are needed by the auto-completer
 export BWZY_COPY_CMD=${BWZY_COPY_CMD:-wl-copy}
 export BWZY_TYPE_CMD=${BWZY_TYPE_CMD:-wtype}
+
+# and the auto-completer itself
+bwzy_autofill=${BWZY_AUTOFILL_HELPER:-"$(dirname "$0")/bwzy-autofill"}
 
 read -r -d '' HELP_TEXT<<'EOH'
 bwzy is a fuzzy wrapper to the bitwarden cli
@@ -44,13 +45,13 @@ Usage:
 EOH
 
 # set some defaults to override based on options
-CLEAR_CACHE='false'
-SYNC_CACHE='false'
-FORCE_SYNC='false'
-DEBUG='false'
 BWZY_OPTS=("${BWZY_DEFAULT_OPTS[@]}")
-FILTER_ARG='-v' # argument to grep
+CLEAR_CACHE='false'
+DEBUG='false'
+FORCE_SYNC='false'
 ONESHOT='false'
+SYNC_CACHE='false'
+FILTER_ARG='-v' # argument to grep
 
 # read in the options
 while getopts "acdfhis1" o; do
@@ -75,7 +76,12 @@ while getopts "acdfhis1" o; do
       ;;
     h)
       # show help and exit
-      echo "$HELP_TEXT" | gum format
+      ( echo "$HELP_TEXT"
+        echo -e "\n# active settings:"
+        echo '```bash'
+        set | grep '^BWZY_' | sort
+        echo '```'
+      ) | bat -l markdown --plain
       exit 0
       ;;
     s)
@@ -177,7 +183,7 @@ fi
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
 read -r -d '' fzf_header <<FZF_HEADER
-[a-/] preview on/off  [a-w] preview wrap     [a-?] this help
+[a-.] preview on/off  [a-/] preview wrap     [a-?] this help
 [a-u] copy username   [a-p] copy password    [a-t] copy totp
 [a-l] copy link       [enter] auto-fill      [esc] clear/quit
 FZF_HEADER
@@ -202,8 +208,8 @@ jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join
   --bind "alt-t:$copy_totp" \
   --bind "alt-l:$copy_link" \
   --bind "enter:$auto_paste" \
-  --bind 'alt-/:toggle-preview' \
-  --bind 'alt-w:toggle-preview-wrap' \
+  --bind 'alt-/:toggle-preview-wrap' \
+  --bind 'alt-.:toggle-preview-wrap' \
   --bind 'alt-?:toggle-header' \
   --bind 'esc:cancel' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
