@@ -24,7 +24,6 @@ BWZY_TOTP_SYMBOL=${BWZY_TOTP_SYMBOL:-t+}
 BWZY_LINK_SYMBOL=${BWZY_LINK_SYMBOL:-l+}
 BWZY_AUTO_SYMBOL=${BWZY_AUTO_SYMBOL:-a+}
 BWZY_FOLDER_SYMBOL=${BWZY_FOLDER_SYMBOL:-/}
-export GLAMOUR_STYLE=tokyo-night
 
 # these are needed by the auto-completer
 export BWZY_COPY_CMD=${BWZY_COPY_CMD:-wl-copy}
@@ -178,9 +177,9 @@ fi
 preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yaml"
 
 read -r -d '' fzf_header <<FZF_HEADER
-[a-/] preview on/off  [a-w] preview wrap     [a-h] this help
+[a-/] preview on/off  [a-w] preview wrap     [a-?] this help
 [a-u] copy username   [a-p] copy password    [a-t] copy totp
-[a-l] copy link       [enter] auto-fill      [esc] quit
+[a-l] copy link       [enter] auto-fill      [esc] clear/quit
 FZF_HEADER
 
 # | awk -F "$TAB" '{ printf "%s\t%-35s\t%27s\n", $1, $2, $3 }' \
@@ -191,12 +190,12 @@ FZF_HEADER
 jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join("'"$TAB"'")' <"$items" \
   | sed -e "$folder_sed" \
   | grep ${FILTER_ARG} "${BWZY_FILTER}" \
-  | gum format \
+  | bat -l markdown --color=always --style=plain \
   | fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
   --header-first \
   --marker='' --pointer="$BWZY_POINTER_SYMBOL" \
   --prompt="$BWZY_PROMPT_SYMBOL" \
-  --info 'inline-right:' \
+  --info 'inline' \
   --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
   --bind "alt-u:$copy_user" \
   --bind "alt-p:$copy_pass" \
@@ -205,8 +204,8 @@ jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join
   --bind "enter:$auto_paste" \
   --bind 'alt-/:toggle-preview' \
   --bind 'alt-w:toggle-preview-wrap' \
-  --bind 'alt-h:toggle-header' \
-  --bind 'esc:abort' \
+  --bind 'alt-?:toggle-header' \
+  --bind 'esc:cancel' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
   --bind "focus:change-prompt($BWZY_PROMPT_SYMBOL)" \
   --preview-window 'down:75%:hidden' \
