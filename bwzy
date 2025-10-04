@@ -208,8 +208,8 @@ jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join
   --bind "alt-t:$copy_totp" \
   --bind "alt-l:$copy_link" \
   --bind "enter:$auto_paste" \
+  --bind 'alt-,:toggle-preview' \
   --bind 'alt-/:toggle-preview-wrap' \
-  --bind 'alt-.:toggle-preview-wrap' \
   --bind 'alt-?:toggle-header' \
   --bind 'esc:cancel' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
