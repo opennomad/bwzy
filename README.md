@@ -3,12 +3,10 @@
 bwzy is a fuzzy finder and auto-filler for Bitwarden (read-only at present).
 It runs in the terminal and uses the official bitwarden CLI.
 
-
-
-`bwzy` also adds an archive mode which lets you hide entries based on a string. 
-
+![bwzy screenshot](./bwzy.jpg)
 
 # current features
+    - terminal UI 
 - more user-friendly than the `bw` command line client
 - search based on name and folder
 - hide based on name (i.e. "hide archives")
@@ -17,7 +15,7 @@ It runs in the terminal and uses the official bitwarden CLI.
 - refresh/flush cache
 - preview items in `YAML` form
 - auto-fill (currently working in hyprland)
-- terminal UI 
+- one-shot mode for use in scripts
 
 # requirements
 
