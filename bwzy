@@ -156,6 +156,7 @@ pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
 # set up queries for the fields
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
+# TODO: currently this always sets a TOTP since `null` is passed to oathtool
 select_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp -"
 select_link="$jq_select_id | .login.uris[1].uri' <$items"
 select_user_pass_totp="$select_user; $select_pass; $select_totp"
