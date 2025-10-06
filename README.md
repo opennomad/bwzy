@@ -6,7 +6,7 @@ It runs in the terminal and uses the official bitwarden CLI.
 ![bwzy screenshot](./bwzy.jpg)
 
 # current features
-    - terminal UI 
+- terminal UI 
 - more user-friendly than the `bw` command line client
 - search based on name and folder
 - hide based on name (i.e. "hide archives")
