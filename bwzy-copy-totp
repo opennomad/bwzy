@@ -1,0 +1,10 @@
+#/bin/bash
+
+read -r TOTP_STRING || TOTP_STRING="null"
+
+# Copy the TOTP to clipboard
+if [[ "$TOTP_STRING" != "null" ]]; then
+  TOTP=$(echo $TOTP_STRING | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp -)
+  echo -n "$TOTP" | cli-copy
+  [[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "TOTP copied to clipboard"
+fi

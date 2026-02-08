@@ -28,7 +28,11 @@ export BWZY_COPY_CMD=${BWZY_COPY_CMD:-wl-copy}
 export BWZY_TYPE_CMD=${BWZY_TYPE_CMD:-wtype}
 
 # and the auto-completer itself
-bwzy_autofill=${BWZY_AUTOFILL_HELPER:-"$(dirname "$0")/bwzy-autofill"}
+export BWZY_AUTOFILL_HELPER=${BWZY_AUTOFILL_HELPER:-$(dirname "$(realpath "$0")")/bwzy-autofill}
+export BWZY_TOTP_COPY=${BWZY_TOTP_COPY:-$(dirname "$(realpath "$0")")/bwzy-copy-totp}
+
+# set | rg BWZY
+# exit 0
 
 read -r -d '' HELP_TEXT<<'EOH'
 bwzy is a fuzzy wrapper to the bitwarden cli
@@ -156,8 +160,7 @@ pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
 # set up queries for the fields
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
-# TODO: currently this always sets a TOTP since `null` is passed to oathtool
-select_totp="$jq_select_id | .login.totp' <$items | sed 's/.*secret=//; s/&.*//' | oathtool -b --totp -"
+select_totp="$jq_select_id | .login.totp' <$items"
 select_link="$jq_select_id | .login.uris[1].uri' <$items"
 select_user_pass_totp="$select_user; $select_pass; $select_totp"
 
@@ -170,9 +173,9 @@ if [[ $ONESHOT == 'true' ]]; then
 else
   copy_user="execute-silent($select_user | $BWZY_COPY_CMD)"
   copy_pass="execute-silent($select_pass | $BWZY_COPY_CMD)"
-  copy_totp="execute-silent($select_totp | $BWZY_COPY_CMD)"
+  copy_totp="execute-silent($select_totp | $BWZY_TOTP_COPY)"
   copy_link="execute-silent($select_link | $BWZY_COPY_CMD)"
-  auto_paste="execute-silent(($select_user_pass_totp) | $bwzy_autofill)"
+  auto_paste="execute-silent(($select_user_pass_totp) | $BWZY_AUTOFILL_HELPER)"
 
   copy_user="${pre_action}+${copy_user}+change-prompt($BWZY_USER_SYMBOL)"
   copy_pass="${pre_action}+${copy_pass}+change-prompt($BWZY_PASS_SYMBOL)"

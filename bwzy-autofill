@@ -18,9 +18,4 @@ $BWZY_TYPE_CMD \
   -s $next_sleep \
   -k return
 
-# Copy the TOTP to clipboard
-if [[ -n "$TOTP" ]]; then
-    echo -n "$TOTP" | cli-copy
-    [[ -n "$BWZY_NOTIFY_CMD" ]] && $BWZY_NOTIFY_CMD "TOTP copied to clipboard"
-fi
-
+$BWZY_TOTP_COPY <<<"$TOTP"
