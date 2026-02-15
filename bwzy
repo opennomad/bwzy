@@ -215,7 +215,7 @@ jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join
   --bind 'alt-,:toggle-preview' \
   --bind 'alt-/:toggle-preview-wrap' \
   --bind 'alt-?:toggle-header' \
-  --bind 'esc:cancel' \
+  --bind 'esc:cancel+first' \
   --bind 'focus:transform-preview-label:echo {2} / {3}' \
   --bind "focus:change-prompt($BWZY_PROMPT_SYMBOL)" \
   --preview-window 'down:75%:hidden' \
