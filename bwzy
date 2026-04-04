@@ -2,8 +2,8 @@
 
 # Trap EXIT signal to clean up by default
 cleanup() {
-    echo "Cleaning up temporary directory..."
-    rm -rf "$BWZY_CACHE"
+  echo "Cleaning up temporary directory..."
+  rm -rf "$BWZY_CACHE"
 }
 [[ "$BWZY_KEEP_CACHE" != 'true' ]] && trap cleanup EXIT
 
@@ -34,7 +34,7 @@ export BWZY_TOTP_COPY=${BWZY_TOTP_COPY:-$(dirname "$(realpath "$0")")/bwzy-copy-
 # set | rg BWZY
 # exit 0
 
-read -r -d '' HELP_TEXT<<'EOH'
+read -r -d '' HELP_TEXT <<'EOH'
 bwzy is a fuzzy wrapper to the bitwarden cli
 
 Usage:
@@ -60,43 +60,44 @@ FILTER_ARG='-v' # argument to grep
 # read in the options
 while getopts "acdfhis1" o; do
   case "${o}" in
-    1)
-      ONESHOT='true'
-      BWZY_OPTS=( "${BWZY_ONESHOT_OPTS[@]}" )
-      ;;
-    a)
-      BWZY_FILTER=''
-      FILTER_ARG=''
-      ;;
-    c)
-      CLEAR_CACHE='true'
-      ;;
-    d)
-      DEBUG='true'
-      ;;
-    f)
-      FORCE_SYNC='true'
-      SYNC_CACHE='true'
-      ;;
-    h)
-      # show help and exit
-      ( echo "$HELP_TEXT"
-        echo -e "\n# active settings:"
-        echo '```bash'
-        set | grep '^BWZY_' | sort
-        echo '```'
-      ) | bat -l markdown --plain
-      exit 0
-      ;;
-    s)
-      SYNC_CACHE='true'
-      ;;
-    *)
-      usage
-      ;;
+  1)
+    ONESHOT='true'
+    BWZY_OPTS=("${BWZY_ONESHOT_OPTS[@]}")
+    ;;
+  a)
+    BWZY_FILTER=''
+    FILTER_ARG=''
+    ;;
+  c)
+    CLEAR_CACHE='true'
+    ;;
+  d)
+    DEBUG='true'
+    ;;
+  f)
+    FORCE_SYNC='true'
+    SYNC_CACHE='true'
+    ;;
+  h)
+    # show help and exit
+    (
+      echo "$HELP_TEXT"
+      echo -e "\n# active settings:"
+      echo '```bash'
+      set | grep '^BWZY_' | sort
+      echo '```'
+    ) | bat -l markdown --plain
+    exit 0
+    ;;
+  s)
+    SYNC_CACHE='true'
+    ;;
+  *)
+    usage
+    ;;
   esac
 done
-shift $((OPTIND-1))
+shift $((OPTIND - 1))
 
 query=$*
 
@@ -109,9 +110,9 @@ log "bwzy options: flush:${CLEAR_CACHE} sync:${SYNC_CACHE} force:${FORCE_SYNC}"
 # Create temporary directories in tmpfs
 # Static filename is used to allow for re-use between invocations
 umask 077 # only user shall have permissions
-[[ "$CLEAR_CACHE" == 'true' ]] \
-  && rm -rf "$BWZY_CACHE" \
-  && echo "cache flushed" && exit 0
+[[ "$CLEAR_CACHE" == 'true' ]] &&
+  rm -rf "$BWZY_CACHE" &&
+  echo "cache flushed" && exit 0
 [[ ! -d $BWZY_CACHE ]] && mkdir "$BWZY_CACHE"
 [[ ! -d $BWZY_CACHE ]] && echo "failed to create tmp dir" && exit 1
 
@@ -121,9 +122,9 @@ if [[ -f ${BWZY_CACHE}/session ]]; then
   export BW_SESSION
 fi
 
-if [[ ! -f "${BWZY_CACHE}/items" ]] || [[ ! -s "${BWZY_CACHE}/items" ]] \
-  || [[ ! -f "${BWZY_CACHE}/folders" ]] || [[ ! -s "${BWZY_CACHE}/folders" ]] \
-  || [[ $SYNC_CACHE == 'true' ]]; then
+if [[ ! -f "${BWZY_CACHE}/items" ]] || [[ ! -s "${BWZY_CACHE}/items" ]] ||
+  [[ ! -f "${BWZY_CACHE}/folders" ]] || [[ ! -s "${BWZY_CACHE}/folders" ]] ||
+  [[ $SYNC_CACHE == 'true' ]]; then
 
   # test the session token and get a new one if it's not unlocked
   if [[ -z "$BW_SESSION" ]] || [[ $(bw status | jq -r '.status') != 'unlocked' ]]; then
@@ -135,10 +136,10 @@ if [[ ! -f "${BWZY_CACHE}/items" ]] || [[ ! -s "${BWZY_CACHE}/items" ]] \
 
   # force the full sync
   [[ $FORCE_SYNC == 'true' ]] && gum spin --title 'forcing full sync' -s dot -- bw sync -f
-  
-  echo "$BW_SESSION" > "${BWZY_CACHE}/session"
-  gum spin --title 'fetching items ...' -s dot bw list items > "${BWZY_CACHE}/items"
-  gum spin --title 'fetching folder list ...' -s dot bw list folders > "${BWZY_CACHE}/folders"
+
+  echo "$BW_SESSION" >"${BWZY_CACHE}/session"
+  gum spin --title 'fetching items ...' -s dot bw list items >"${BWZY_CACHE}/items"
+  gum spin --title 'fetching folder list ...' -s dot bw list folders >"${BWZY_CACHE}/folders"
 fi
 
 log "bwzy Environment:"
@@ -150,7 +151,7 @@ items="${BWZY_CACHE}/items"
 folders="${BWZY_CACHE}/folders"
 
 TAB="	"
-folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' < "$folders")
+folder_sed=$(jq -r '.[] | [ "s@" , .id , "@" , .name , "@;" ] | join("")' <"$folders")
 
 # define the logic here for use in fzf call
 jq_select_id="jq -r '.[] | select(.id == \"{1}\")"
@@ -161,7 +162,7 @@ pre_action="execute-silent($BWZY_REFOCUS_CMD && $BWZY_HIDE_CMD)"
 select_user="$jq_select_id | .login.username' <$items"
 select_pass="$jq_select_id | .login.password' <$items"
 select_totp="$jq_select_id | .login.totp' <$items"
-select_link="$jq_select_id | .login.uris[1].uri' <$items"
+select_link="$jq_select_id | .login.uris[0].uri' <$items"
 select_user_pass_totp="$select_user; $select_pass; $select_totp"
 
 if [[ $ONESHOT == 'true' ]]; then
@@ -189,7 +190,7 @@ preview_item="$jq_select_id' < $items | json2yaml | bat --color=always -p -l yam
 read -r -d '' fzf_header <<FZF_HEADER
 [a-.] preview on/off  [a-/] preview wrap     [a-?] this help
 [a-u] copy username   [a-p] copy password    [a-t] copy totp
-[a-l] copy link       [enter] auto-fill      [esc] clear/quit
+[a-i] copy uri        [enter] auto-fill      [esc] clear/quit
 FZF_HEADER
 
 # | awk -F "$TAB" '{ printf "%s\t%-35s\t%27s\n", $1, $2, $3 }' \
@@ -197,28 +198,28 @@ FZF_HEADER
 #
 # shellcheck disable=SC2016
 # **the single and double quotes in the fzf commands are intentional**
-jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join("'"$TAB"'")' <"$items" \
-  | sed -e "$folder_sed" \
-  | grep ${FILTER_ARG} "${BWZY_FILTER}" \
-  | bat -l markdown --color=always --style=plain \
-  | fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
-  --header-first \
-  --marker='' --pointer="$BWZY_POINTER_SYMBOL" \
-  --prompt="$BWZY_PROMPT_SYMBOL" \
-  --info 'inline' \
-  --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
-  --bind "alt-u:$copy_user" \
-  --bind "alt-p:$copy_pass" \
-  --bind "alt-t:$copy_totp" \
-  --bind "alt-l:$copy_link" \
-  --bind "enter:$auto_paste" \
-  --bind 'alt-,:toggle-preview' \
-  --bind 'alt-/:toggle-preview-wrap' \
-  --bind 'alt-?:toggle-header' \
-  --bind 'esc:cancel+first' \
-  --bind 'focus:transform-preview-label:echo {2} / {3}' \
-  --bind "focus:change-prompt($BWZY_PROMPT_SYMBOL)" \
-  --preview-window 'down:75%:hidden' \
-  --preview "$preview_item" \
-  --header "${fzf_header}" \
-  "${BWZY_OPTS[@]}" -q "$query"
+jq -r '.[] | [ .id, .name, "`'"$BWZY_FOLDER_SYMBOL"'" + .folderId + "`" ] | join("'"$TAB"'")' <"$items" |
+  sed -e "$folder_sed" |
+  grep ${FILTER_ARG} "${BWZY_FILTER}" |
+  bat -l markdown --color=always --style=plain |
+  fzf --ansi -i --delimiter="$TAB" --with-nth 2,3 \
+    --header-first \
+    --marker='' --pointer="$BWZY_POINTER_SYMBOL" \
+    --prompt="$BWZY_PROMPT_SYMBOL" \
+    --info 'inline' \
+    --info-command 'echo "($FZF_MATCH_COUNT/$FZF_TOTAL_COUNT)"' \
+    --bind "alt-u:$copy_user" \
+    --bind "alt-p:$copy_pass" \
+    --bind "alt-t:$copy_totp" \
+    --bind "alt-i:$copy_link" \
+    --bind "enter:$auto_paste" \
+    --bind 'alt-,:toggle-preview' \
+    --bind 'alt-/:toggle-preview-wrap' \
+    --bind 'alt-?:toggle-header' \
+    --bind 'esc:cancel+first' \
+    --bind 'focus:transform-preview-label:echo {2} / {3}' \
+    --bind "focus:change-prompt($BWZY_PROMPT_SYMBOL)" \
+    --preview-window 'down:75%:hidden' \
+    --preview "$preview_item" \
+    --header "${fzf_header}" \
+    "${BWZY_OPTS[@]}" -q "$query"
